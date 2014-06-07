@@ -14,23 +14,19 @@
 > import Prelude hiding (last, length)
 > 
 > data Example = Example (Maybe String) Int deriving (Show)
+>
+> lastLine :: Updatable (Maybe String)
+> lastLine = On last stdinLines
+>
+> seconds :: Updatable Int
+> seconds = On length (tick 1.0)
+>
+> example :: Updatable Example
+> example = Example <$> lastLine <*> seconds
 > 
 > viewController :: Managed (View Example, Controller Example)
 > viewController = do
->     lines <- stdinLines :: Managed (Controller String)
->     ticks <- tick 3.0   :: Managed (Controller ()    )
-> 
->     let lastLine :: Updatable (Maybe String)
->         lastLine = On last lines
-> 
->         numTicks :: Updatable Int
->         numTicks = On length ticks
-> 
->         both :: Updatable Example
->         both = Example <$> lastLine <*> numTicks
-> 
->     controller <- updates Unbounded both :: Managed (Controller Example)
-> 
+>     controller <- updates Unbounded example
 >     return (asSink print, controller)
 > 
 > model :: Model () Example Example
@@ -43,7 +39,7 @@
 
     * @lastLine@ updates every time the user enters a new line at standard input
 
-    * @numTicks@ increments every 3 seconds
+    * @seconds@ increments every second
 
     Then we assembles them into a derived `Updatable` value using `Applicative`
     operations.  This derived value updates every time one of the two primitive
@@ -61,10 +57,10 @@
 > quit<Enter>
 > $
 
-    Every time the user types in a new line of input the @controller@ emits a new
-    @Example@ value with a new value for the first field.  Similarly, every time
-    3 seconds pass the @controller@ emits a new @Example@ value that increments
-    the second field.
+    Every time the user types in a new line of input the @controller@ emits a
+    new @Example@ value with a new value for the first field.  Similarly, every
+    time one second passes the @controller@ emits a new @Example@ value that
+    increments the second field.
 -}
 
 module MVC.Updates (
@@ -72,11 +68,15 @@ module MVC.Updates (
       -- $updates
       Updatable(..)
     , updates
+
+    -- * Re-exports
+    -- $reexports
+    , module Control.Foldl
     ) where
 
 import Control.Applicative (Applicative(pure, (<*>)), (<*))
 import Control.Concurrent.Async (withAsync)
-import Control.Foldl (Fold(Fold))
+import Control.Foldl (Fold(..))
 import Control.Monad.Trans.State.Strict
 import MVC
 
@@ -106,10 +106,10 @@ import MVC
 -}
 
 -- | A concurrent, updatable value
-data Updatable a = forall e . On (Fold e a) (Controller e)
+data Updatable a = forall e . On (Fold e a) (Managed (Controller e))
 
 instance Functor Updatable where
-    fmap f (On fold controller) = On (fmap f fold) controller
+    fmap f (On fold mController) = On (fmap f fold) mController
 
 {-
 > onLeft (f <*> x) = onLeft f <*> onLeft x
@@ -136,31 +136,38 @@ onRight (Fold step begin done) = Fold step' begin done
 instance Applicative Updatable where
     pure a = On (pure a) mempty
 
-    (On foldL controllerL) <*> (On foldR controllerR) = On foldT controllerT
+    (On foldL mControllerL) <*> (On foldR mControllerR) = On foldT mControllerT
       where
         foldT = onLeft foldL <*> onRight foldR
 
-        controllerT = fmap Left controllerL <> fmap Right controllerR
+        mControllerT =
+            fmap (fmap Left) mControllerL <> fmap (fmap Right) mControllerR
 
 {-| Convert an `Updatable` value to a `Managed` `Controller` that emits updates by
     specifying how to `Buffer` the updates
 -}
 updates :: Buffer a -> Updatable a -> Managed (Controller a)
-updates buffer (On (Fold step begin done) control) = managed $ \k -> do
-    (o, i, seal) <- spawn' buffer
+updates buffer (On (Fold step begin done) mController) = do
+    controller <- mController
+    managed $ \k -> do
+        (o, i, seal) <- spawn' buffer
+    
+        let model_ = asPipe $ do
+                yield (done begin)
+                for cat $ \e -> do
+                    a <- lift (state (\x -> let x' = step x e in (done x', x')))
+                    yield a
+    
+            view_ = asSink $ \a -> do
+                _ <- atomically (send o a)
+                return ()
+    
+        let io = do
+                _ <- runMVC begin model_ (pure (view_, controller))
+                atomically seal
+    
+        withAsync io $ \_ -> k (asInput i) <* atomically seal
 
-    let model_ = asPipe $ do
-            yield (done begin)
-            for cat $ \e -> do
-                a <- lift (state (\x -> let x' = step x e in (done x', x')))
-                yield a
-
-        view_ = asSink $ \a -> do
-            _ <- atomically (send o a)
-            return ()
-
-    let io = do
-            _ <- runMVC begin model_ (pure (view_, control))
-            atomically seal
-
-    withAsync io $ \_ -> k (asInput i) <* atomically seal
+{- $reexports
+    "Control.Foldl" re-exports the `Fold` type
+-}
