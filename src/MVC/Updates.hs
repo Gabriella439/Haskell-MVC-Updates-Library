@@ -52,9 +52,9 @@
 > $ ./example
 > Example Nothing 0
 > Test<Enter>
-> Example (Just "test") 0
-> Example (Just "test") 1
-> Example (Just "test") 2
+> Example (Just "Test") 0
+> Example (Just "Test") 1
+> Example (Just "Test") 2
 > ABC<Enter>
 > Example (Just "ABC") 2
 > Example (Just "ABC") 3
