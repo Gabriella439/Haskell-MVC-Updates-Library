@@ -1,7 +1,9 @@
 {-# LANGUAGE ExistentialQuantification #-}
 
 {-| Use this library to build @mvc@ applications that consume many `Updatable`
-    values.  Here is an example program to illustrate how this library works:
+    values.  This documentation assumes familiarity with the @mvc@ library.
+
+    Here is an example program to illustrate how this library works:
 
 > import Control.Applicative ((<$>), (<*>))
 > import Control.Foldl (last, length)
@@ -37,6 +39,32 @@
 > main :: IO ()
 > main = runMVC () model viewController
 
+    First we build two primitive `Updatable` values:
+
+    * @lastLine@ updates every time the user enters a new line at standard input
+
+    * @numTicks@ increments every 3 seconds
+
+    Then we assembles them into a derived `Updatable` value using `Applicative`
+    operations.  This derived value updates every time one of the two primitive
+    values updates:
+
+> $ ./example
+> Example Nothing 0
+> Test<Enter>
+> Example (Just "test") 0
+> Example (Just "test") 1
+> Example (Just "test") 2
+> ABC<Enter>
+> Example (Just "ABC") 2
+> Example (Just "ABC") 3
+> quit<Enter>
+> $
+
+    Every time the user types in a new line of input the @controller@ emits a new
+    @Example@ value with a new value for the first field.  Similarly, every time
+    3 seconds pass the @controller@ emits a new @Example@ value that increments
+    the second field.
 -}
 
 module MVC.Updates (
