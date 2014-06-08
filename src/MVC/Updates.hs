@@ -1,7 +1,16 @@
 {-# LANGUAGE ExistentialQuantification #-}
 
-{-| Use this library to build @mvc@ applications that consume many `Updatable`
-    values.  This documentation assumes familiarity with the @mvc@ library.
+{-| Use this library to build @mvc@ applications that consume many individually
+    `Updatable` values, such as:
+
+    * spread sheets,
+
+    * control panels, and:
+
+    * data visualizations.
+
+    This library builds on top of the @mvc@ library, so you may want to read
+    the documentation in the "MVC" module if you haven't already.
 
     Here is an example program to illustrate how this library works:
 
@@ -35,13 +44,13 @@
 > main :: IO ()
 > main = runMVC () model viewController
 
-    First we build two primitive `Updatable` values:
+    First we build two simple `Updatable` values:
 
     * @lastLine@ updates every time the user enters a new line at standard input
 
     * @seconds@ increments every second
 
-    Then we assembles them into a derived `Updatable` value using `Applicative`
+    Then we assemble them into a derived `Updatable` value using `Applicative`
     operations.  This derived value updates every time one of the two primitive
     values updates:
 
@@ -58,9 +67,9 @@
 > $
 
     Every time the user types in a new line of input the @controller@ emits a
-    new @Example@ value with a new value for the first field.  Similarly, every
-    time one second passes the @controller@ emits a new @Example@ value that
-    increments the second field.
+    new @Example@ value that overrides the first field.  Similarly, every time
+    one second passes the @controller@ emits a new @Example@ value that
+    overrides the second field.
 -}
 
 module MVC.Updates (
@@ -77,27 +86,31 @@ module MVC.Updates (
 import Control.Applicative (Applicative(pure, (<*>)), (<*))
 import Control.Concurrent.Async (withAsync)
 import Control.Foldl (Fold(..))
-import Control.Monad.Trans.State.Strict
+import Control.Monad (forever)
+import Control.Monad.Trans.State.Strict (get, put)
 import MVC
 
 {- $updates
     You can combine smaller updates into larger updates using `Applicative`
     operations:
 
-> as :: Updatable A
-> bs :: Updatable B
+> _As :: Updatable A
+> _Bs :: Updatable B
 >
-> abs :: Updatable (A, B)
-> abs = liftA2 (,) as bs
+> _ABs :: Updatable (A, B)
+> _ABs = liftA2 (,) _As _Bs
 
-    @abs@ updates every time either @as@ updates or @bs@ updates, caching and
-    reusing values that do not update.  For example, if @as@ emits a new @A@,
-    then @abs@ reuses the old value for @B@.  Vice versa, if @bs@ emits a new
-    @B@ then @abs@ reuses the old value for @A@.
+    @_ABs@ updates every time either @_As@ updates or @_Bs@ updates, caching and
+    reusing values that do not update.  For example, if @_As@ emits a new @A@,
+    then @_ABs@ reuses the old value for @B@.  Vice versa, if @_Bs@ emits a new
+    @B@ then @_ABs@ reuses the old value for @A@.
 
-    This caching behavior transitively works for any number of updates.  Also,
-    the internal code is efficient and only introduces one extra thread no
-    matter how many updates you combine.
+    This caching behavior transitively works for any number of updates that you
+    combine using `Applicative` operations.  Also, the internal code is
+    efficient and only introduces one extra thread no matter how many updates
+    you combine.  You can even skip the extra thread if you unpack the
+    `Fold` type and use the fields directly within your @mvc@ program.
+    Study the source code for `updates` to see this in action.
 
     Tip: To efficiently merge a large number of updates, store them in a
     `Data.Sequence.Seq` and use `Data.Foldable.sequenceA` to merge them:
@@ -152,11 +165,11 @@ updates buffer (On (Fold step begin done) mController) = do
     managed $ \k -> do
         (o, i, seal) <- spawn' buffer
     
-        let model_ = asPipe $ do
-                yield (done begin)
-                for cat $ \e -> do
-                    a <- lift (state (\x -> let x' = step x e in (done x', x')))
-                    yield a
+        let model_ = asPipe $ forever $ do
+                x <- lift get
+                yield (done x)
+                e <- await
+                lift $ put $! step x e
     
             view_ = asSink $ \a -> do
                 _ <- atomically (send o a)
