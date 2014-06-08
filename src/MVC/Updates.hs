@@ -108,9 +108,9 @@ import MVC
     This caching behavior transitively works for any number of updates that you
     combine using `Applicative` operations.  Also, the internal code is
     efficient and only introduces one extra thread no matter how many updates
-    you combine.  You can even skip the extra thread if you unpack the
-    `Fold` type and use the fields directly within your @mvc@ program.
-    Study the source code for `updates` to see this in action.
+    you combine.  You can even skip the extra thread if you unpack the `Fold`
+    type and use the fields directly within your @mvc@ program.  Study the
+    source code for `updates` to see this in action.
 
     Tip: To efficiently merge a large number of updates, store them in a
     `Data.Sequence.Seq` and use `Data.Foldable.sequenceA` to merge them:
@@ -156,8 +156,9 @@ instance Applicative Updatable where
         mControllerT =
             fmap (fmap Left) mControllerL <> fmap (fmap Right) mControllerR
 
-{-| Convert an `Updatable` value to a `Managed` `Controller` that emits updates by
-    specifying how to `Buffer` the updates
+{-| Convert an `Updatable` value to a `Managed` `Controller` that emits updates
+
+    You must specify how to `Buffer` the updates
 -}
 updates :: Buffer a -> Updatable a -> Managed (Controller a)
 updates buffer (On (Fold step begin done) mController) = do
