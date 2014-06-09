@@ -70,6 +70,9 @@
     new @Example@ value that overrides the first field.  Similarly, every time
     one second passes the @controller@ emits a new @Example@ value that
     overrides the second field.
+
+    The Example section at the bottom of this module contains an extended
+    example for how to build a GTK-based spreadsheet using this library.
 -}
 
 module MVC.Updates (
@@ -77,6 +80,9 @@ module MVC.Updates (
       -- $updates
       Updatable(..)
     , updates
+
+    -- * Example
+    -- $example
 
     -- * Re-exports
     -- $reexports
@@ -181,6 +187,81 @@ updates buffer (On (Fold step begin done) mController) = do
                 atomically seal
     
         withAsync io $ \_ -> k (asInput i) <* atomically seal
+
+-- $example
+-- > {-# LANGUAGE TemplateHaskell #-}
+-- > 
+-- > import Control.Applicative (Applicative, (<$>), (<*>))
+-- > import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
+-- > import Control.Concurrent.Async (async, wait)
+-- > import Control.Foldl (latest)
+-- > import Graphics.UI.Gtk
+-- > import Lens.Family.TH (makeLenses)
+-- > import MVC
+-- > import MVC.Updates
+-- > 
+-- > spreadsheet :: Managed (Updatable Double, Managed (View Double), IO ())
+-- > spreadsheet = managed $ \k -> do
+-- >     initGUI
+-- >     window <- windowNew
+-- >     hBox   <- hBoxNew False 0
+-- >     vBoxL  <- vBoxNew False 0
+-- >     vBoxR  <- vBoxNew False 0
+-- > 
+-- >     set window [windowTitle := "Spreadsheet", containerChild := hBox]
+-- >     boxPackStartDefaults hBox vBoxL
+-- >     boxPackStartDefaults hBox vBoxR
+-- > 
+-- >     mvar <- newEmptyMVar
+-- >     a    <- async $ k (makeInCell vBoxL, makeOutCell vBoxR, putMVar mvar ())
+-- >     takeMVar mvar
+-- > 
+-- >     on window deleteEvent $ do
+-- >         liftIO mainQuit
+-- >         return False
+-- >     widgetShowAll window
+-- >     mainGUI
+-- >     wait a
+-- > 
+-- > makeInCell :: VBox -> Updatable Double
+-- > makeInCell vBox = On (latest 0) $ managed $ \k -> do
+-- >     (output, input) <- spawn Unbounded
+-- >     spinButton <- spinButtonNewWithRange 0 100 1
+-- >     onValueSpinned spinButton $ do
+-- >         n <- get spinButton spinButtonValue
+-- >         _ <- atomically (send output n)
+-- >         return ()
+-- >     boxPackStartDefaults vBox spinButton
+-- >     widgetShowAll vBox
+-- >     k (asInput input)
+-- > 
+-- > makeOutCell :: VBox -> Managed (View Double)
+-- > makeOutCell vBox = liftIO $ do
+-- >     entry <- entryNew
+-- >     boxPackStartDefaults vBox entry
+-- >     return $ asSink $ \n -> postGUISync $ entrySetText entry (show n)
+-- > 
+-- > data Out = O { _o1 :: Double, _o2 :: Double, _o3 :: Double, _o4 :: Double }
+-- > 
+-- > data In  = I { _i1 :: Double, _i2 :: Double, _i3 :: Double, _i4 :: Double }
+-- > 
+-- > makeLenses ''Out
+-- > o1, o2, o3, o4 :: Functor f => (Double -> f Double) -> Out -> f Out
+-- > 
+-- > model :: Model () In Out
+-- > model = asPipe $ loop $ \(I i1 i2 i3 i4) -> do
+-- >     return $ O (i1 + i2) (i2 * i3) (i3 - i4) (max i4 i1)
+-- > 
+-- > main :: IO ()
+-- > main = runMVC () model $ do
+-- >     (inCell, outCell, go) <- spreadsheet
+-- >     c <- updates Unbounded $ I <$> inCell <*> inCell <*> inCell <*> inCell
+-- >     v <- fmap (handles o1) outCell
+-- >       <> fmap (handles o2) outCell
+-- >       <> fmap (handles o3) outCell
+-- >       <> fmap (handles o4) outCell
+-- >     liftIO go
+-- >     return (v, c)
 
 {- $reexports
     "Control.Foldl" re-exports the `Fold` type
