@@ -189,6 +189,14 @@ updates buffer (On (Fold step begin done) mController) = do
         withAsync io $ \_ -> k (asInput i) <* atomically seal
 
 -- $example
+--
+-- The following example program shows how to build a spreadsheet with input and
+-- output cells using the @gtk@, @mvc@ and @mvc-updates@ libraries.
+--
+-- The first half of the program contains all the @gtk@-specific logic.  The
+-- key function is @spreadsheet@, which returns high-level commands to build
+-- multiple input and output cells.
+--
 -- > {-# LANGUAGE TemplateHaskell #-}
 -- > 
 -- > import Control.Applicative (Applicative, (<$>), (<*>))
@@ -199,29 +207,6 @@ updates buffer (On (Fold step begin done) mController) = do
 -- > import Lens.Family.TH (makeLenses)
 -- > import MVC
 -- > import MVC.Updates
--- > 
--- > spreadsheet :: Managed (Updatable Double, Managed (View Double), IO ())
--- > spreadsheet = managed $ \k -> do
--- >     initGUI
--- >     window <- windowNew
--- >     hBox   <- hBoxNew False 0
--- >     vBoxL  <- vBoxNew False 0
--- >     vBoxR  <- vBoxNew False 0
--- > 
--- >     set window [windowTitle := "Spreadsheet", containerChild := hBox]
--- >     boxPackStartDefaults hBox vBoxL
--- >     boxPackStartDefaults hBox vBoxR
--- > 
--- >     mvar <- newEmptyMVar
--- >     a    <- async $ k (makeInCell vBoxL, makeOutCell vBoxR, putMVar mvar ())
--- >     takeMVar mvar
--- > 
--- >     on window deleteEvent $ do
--- >         liftIO mainQuit
--- >         return False
--- >     widgetShowAll window
--- >     mainGUI
--- >     wait a
 -- > 
 -- > makeInCell :: VBox -> Updatable Double
 -- > makeInCell vBox = On (latest 0) $ managed $ \k -> do
@@ -241,6 +226,33 @@ updates buffer (On (Fold step begin done) mController) = do
 -- >     boxPackStartDefaults vBox entry
 -- >     return $ asSink $ \n -> postGUISync $ entrySetText entry (show n)
 -- > 
+-- > spreadsheet :: Managed (Updatable Double, Managed (View Double), IO ())
+-- > spreadsheet = managed $ \k -> do
+-- >     initGUI
+-- >     window <- windowNew
+-- >     hBox   <- hBoxNew False 0
+-- >     vBoxL  <- vBoxNew False 0
+-- >     vBoxR  <- vBoxNew False 0
+-- >     set window [windowTitle := "Spreadsheet", containerChild := hBox]
+-- >     boxPackStartDefaults hBox vBoxL
+-- >     boxPackStartDefaults hBox vBoxR
+-- > 
+-- >     mvar <- newEmptyMVar
+-- >     a    <- async $ k (makeInCell vBoxL, makeOutCell vBoxR, putMVar mvar ())
+-- >     takeMVar mvar
+-- > 
+-- >     on window deleteEvent $ do
+-- >         liftIO mainQuit
+-- >         return False
+-- >     widgetShowAll window
+-- >     mainGUI
+-- >     wait a
+--
+--     Input cells are `Updatable` values, and output cells are `Managed`
+--     `View`s.  Since `Updatable` values are `Applicative`s, we can combine
+--     input cells into a single `Updatable` value (represented by the @In@
+--     type) that updates whenever any individual cell updates:
+--
 -- > data Out = O { _o1 :: Double, _o2 :: Double, _o3 :: Double, _o4 :: Double }
 -- > 
 -- > data In  = I { _i1 :: Double, _i2 :: Double, _i3 :: Double, _i4 :: Double }
@@ -262,6 +274,15 @@ updates buffer (On (Fold step begin done) mController) = do
 -- >       <> fmap (handles o4) outCell
 -- >     liftIO go
 -- >     return (v, c)
+--
+--     The @model@ contains the pure fragment of our program that relates input
+--     cells to output cells.  In this example, each output cell is a function
+--     of two input cells.
+--
+--     If you compile and run the above program, a small spread sheet window
+--     will open with input cells on the left-hand side and output cells on the
+--     right-hand side.  Modifying any input cell will automatically update all
+--     output cells.
 
 {- $reexports
     "Control.Foldl" re-exports the `Fold` type
