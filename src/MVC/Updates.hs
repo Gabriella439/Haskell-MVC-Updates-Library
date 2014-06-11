@@ -197,6 +197,8 @@ updates buffer (On (Fold step begin done) mController) = do
 -- key function is @spreadsheet@, which returns high-level commands to build
 -- multiple input and output cells.
 --
+-- > -- This must be compiled with the `-threaded` flag
+-- >
 -- > {-# LANGUAGE TemplateHaskell #-}
 -- > 
 -- > import Control.Applicative (Applicative, (<$>), (<*>))
@@ -274,15 +276,17 @@ updates buffer (On (Fold step begin done) mController) = do
 -- >       <> fmap (handles o4) outCell
 -- >     liftIO go
 -- >     return (v, c)
+-- >
+-- > -- This must be compiled with the `-threaded` flag
 --
 --     The @model@ contains the pure fragment of our program that relates input
 --     cells to output cells.  In this example, each output cell is a function
 --     of two input cells.
 --
---     If you compile and run the above program, a small spread sheet window
---     will open with input cells on the left-hand side and output cells on the
---     right-hand side.  Modifying any input cell will automatically update all
---     output cells.
+--     If you compile and run the above program with the @-threaded@ flag, a
+--     small spread sheet window will open with input cells on the left-hand
+--     side and output cells on the right-hand side.  Modifying any input cell
+--     will automatically update all output cells.
 
 {- $reexports
     "Control.Foldl" re-exports the `Fold` type
