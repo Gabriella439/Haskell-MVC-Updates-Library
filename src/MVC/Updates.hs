@@ -204,14 +204,14 @@ updates buffer (On (Fold step begin done) mController) = do
 -- > import Control.Applicative (Applicative, (<$>), (<*>))
 -- > import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
 -- > import Control.Concurrent.Async (async, wait)
--- > import Control.Foldl (latest)
+-- > import Control.Foldl (lastDef)
 -- > import Graphics.UI.Gtk
 -- > import Lens.Family.TH (makeLenses)
 -- > import MVC
 -- > import MVC.Updates
 -- > 
 -- > makeInCell :: VBox -> Updatable Double
--- > makeInCell vBox = On (latest 0) $ managed $ \k -> do
+-- > makeInCell vBox = On (lastDef 0) $ managed $ \k -> do
 -- >     (output, input) <- spawn Unbounded
 -- >     spinButton <- spinButtonNewWithRange 0 100 1
 -- >     onValueSpinned spinButton $ do
