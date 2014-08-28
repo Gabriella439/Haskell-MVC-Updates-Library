@@ -9,8 +9,6 @@
 
     * data visualizations.
 
-    * build systems
-
     This library builds on top of the @mvc@ library, so you may want to read
     the documentation in the "MVC" module if you haven't already.
 
@@ -45,39 +43,26 @@
 
     * @seconds@ increments every second
 
-    Additionally, the `debug` function attaches a listener to each value that
-    prints updates to the console.  Every listener triggers once at the
-    beginning of the program and once for each update to the attached value.
-
-    Then we assemble these two `Updatable` values into a derived `Updatable`
-    value using `Applicative` operations.  This derived value updates every
-    time one of the two original values updates:
+    Then we assemble them into a derived `Updatable` value using `Applicative`
+    operations.  This derived value updates every time one of the two primitive
+    values updates:
 
 > $ ./example
-> lastLine: Nothing
-> seconds : 0
-> example : Example Nothing 0
+> Example Nothing 0
 > Test<Enter>
-> lastLine: Just "Test"
-> example : Example (Just "Test") 0
-> seconds : 1
-> example : Example (Just "Test") 1
-> seconds : 2
-> example : Example (Just "Test") 2
+> Example (Just "Test") 0
+> Example (Just "Test") 1
+> Example (Just "Test") 2
 > ABC<Enter>
-> lastLine: Just "ABC"
-> example : Example (Just "ABC") 2
-> seconds : 3
-> example : Example (Just "ABC") 3
-> ...
+> Example (Just "ABC") 2
+> Example (Just "ABC") 3
+> quit<Enter>
+> $
 
-    At the beginning of the program we see one debug output for each value's
-    initialization.  Afterwards, we see updates every time the user enters a
-    line of input or one second passes.
-
-    Updates are efficient.  When the user enters a new line, the `Example` value
-    reuses the cached value for seconds.  Similarly, when one second passes, the
-    `Example` reuses the cached value for the last line.
+    Every time the user types in a new line of input the @controller@ emits a
+    new @Example@ value that overrides the first field.  Similarly, every time
+    one second passes the @controller@ emits a new @Example@ value that
+    overrides the second field.
 
     The Example section at the bottom of this module contains an extended
     example for how to build a GTK-based spreadsheet using this library.
@@ -126,9 +111,10 @@ import Prelude hiding (id)
 
     This caching behavior transitively works for any number of updates that you
     combine using `Applicative` operations.  Also, the internal code is
-    efficient and does not introduce any new threads no matter how many updates
-    you combine.  (Note: the `updates` function does introduce one additional
-    thread)
+    efficient and only introduces one extra thread no matter how many updates
+    you combine.  You can even skip the extra thread if you unpack the `Fold`
+    type and use the fields directly within your @mvc@ program.  Study the
+    source code for `updates` to see this in action.
 
     Tip: To efficiently merge a large number of updates, store them in a
     `Data.Sequence.Seq` and use `Data.Foldable.sequenceA` to merge them:

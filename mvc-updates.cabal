@@ -9,8 +9,8 @@ Author: Gabriel Gonzalez
 Maintainer: Gabriel439@gmail.com
 Bug-Reports: https://github.com/Gabriel439/Haskell-MVC-Updates-Library/issues
 Synopsis: Concurrent and combinable updates
-Description: Use the @mvc-updates@ library to build programs with multiple
-  continously updating inputs where you can attach listeners to updates.
+Description: Use the @mvc-updates@ library to build programs with continously
+  updating inputs.
   .
   Key features include:
   .
