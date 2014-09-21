@@ -1,4 +1,4 @@
-{-# LANGUAGE ExistentialQuantification, RankNTypes #-}
+{-# LANGUAGE ExistentialQuantification #-}
 
 {-| Use this library to build @mvc@ applications that consume many individually
     `Updatable` values, such as:
@@ -89,6 +89,7 @@ module MVC.Updates (
       Updatable(..)
     , on
     , listen
+    , transform
     , runUpdatable
     , updates
 
@@ -105,6 +106,7 @@ import Control.Category (id)
 import Control.Concurrent.Async (withAsync)
 import Control.Foldl (FoldM(..), Fold(..))
 import qualified Control.Foldl as Foldl
+import Control.Monad ((>=>))
 import Data.IORef (newIORef, readIORef, writeIORef)
 import MVC
 import Prelude hiding (id)
@@ -179,20 +181,21 @@ on fold = On (Foldl.generalize fold)
 > listen (f <> g) = listen g . listen f
 -}
 listen :: (a -> IO ()) -> Updatable a -> Updatable a
-listen handler (On (FoldM step begin done) mController) =
-    On (FoldM step' begin' done) mController
-  where
-    begin' = do
-        x <- begin
-        b <- done x
-        handler b
-        return x
-    step' x a = do
-        x' <- step x a
-        b  <- done x'
-        handler b
-        return x'
+listen f = transform (\a -> do
+    f a
+    return a )
 {-# INLINABLE listen #-}
+
+{-| Transform an `Updatable` value using an impure function
+
+> transform return = id
+>
+> transform (f >=> g) = transform g . transform f
+-}
+transform :: (a -> IO b) -> Updatable a -> Updatable b
+transform f (On (FoldM step begin  done       ) mController) =
+             On (FoldM step begin (done >=> f)) mController
+{-# INLINABLE transform #-}
 
 {-| Run an `Updatable` value, discarding the result
 
