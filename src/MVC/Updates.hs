@@ -142,34 +142,25 @@ data Updatable a = forall e . On (FoldM IO e a) (Managed (Controller e))
 instance Functor Updatable where
     fmap f (On fold mController) = On (fmap f fold) mController
 
-{-
-> onLeft (f <*> x) = onLeft f <*> onLeft x
->
-> onLeft (pure r) = pure r
--}
-onLeft :: Monad m => FoldM m a b -> FoldM m (Either a x) b
-onLeft (FoldM step begin done) = FoldM step' begin done
-  where
-    step' x (Left a) = step x a
-    step' x  _       = return x
+-- _Left :: Traversable' (Either a b) a
+_Left :: Applicative f => (a -> f a) -> (Either a b -> f (Either a b))
+_Left k e = case e of
+    Left  a -> fmap Left (k a)
+    Right b -> pure (Right b)
 
-{-
-> onRight (f <*> x) = onRight f <*> onRight x
->
-> onRight (pure r) = pure r
--}
-onRight :: Monad m => FoldM m a b -> FoldM m (Either x a) b
-onRight (FoldM step begin done) = FoldM step' begin done
-  where
-    step' x (Right a) = step x a
-    step' x  _        = return x
+-- _Right :: Traversable' (Either a b) b
+_Right :: Applicative f => (b -> f b) -> (Either a b -> f (Either a b))
+_Right k e = case e of
+    Left  a -> pure (Left a)
+    Right b -> fmap Right (k b)
 
 instance Applicative Updatable where
     pure a = On (pure a) mempty
 
     (On foldL mControllerL) <*> (On foldR mControllerR) = On foldT mControllerT
       where
-        foldT = onLeft foldL <*> onRight foldR
+        foldT =
+            Foldl.pretraverseM _Left foldL <*> Foldl.pretraverseM _Right foldR
 
         mControllerT =
             fmap (fmap Left) mControllerL <> fmap (fmap Right) mControllerR
