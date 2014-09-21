@@ -253,6 +253,10 @@ updates buffer (On (FoldM step begin done) mController) = do
 -- The following example program shows how to build a spreadsheet with input and
 -- output cells using the @gtk@, @mvc@ and @mvc-updates@ libraries.
 --
+-- You can find this and other examples on:
+--
+-- <https://github.com/Gabriel439/Haskell-MVC-Updates-Examples-Library>
+--
 -- The first half of the program contains all the @gtk@-specific logic.  The
 -- key function is @spreadsheet@, which returns high-level commands to build
 -- multiple input and output cells.
