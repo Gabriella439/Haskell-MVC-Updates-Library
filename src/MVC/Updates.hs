@@ -181,9 +181,19 @@ on fold = On (Foldl.generalize fold)
 > listen (f <> g) = listen g . listen f
 -}
 listen :: (a -> IO ()) -> Updatable a -> Updatable a
-listen f = transform (\a -> do
-    f a
-    return a )
+listen handler (On (FoldM step begin done) mController) =
+    On (FoldM step' begin' done) mController
+  where
+    begin' = do
+        x <- begin
+        b <- done x
+        handler b
+        return x
+    step' x a = do
+        x' <- step x a
+        b  <- done x'
+        handler b
+        return x'
 {-# INLINABLE listen #-}
 
 {-| Transform an `Updatable` value using an impure function
