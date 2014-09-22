@@ -101,11 +101,11 @@ module MVC.Updates (
     , module Control.Foldl
     ) where
 
-import Control.Applicative (Applicative(pure, (<*>)), (<*))
+import Control.Applicative (Applicative(pure, (<*>)), (<*), liftA2)
 import Control.Category (id)
 import Control.Concurrent.Async (withAsync)
 import Control.Foldl (FoldM(..), Fold(..))
-import qualified Control.Foldl as Foldl
+import qualified Control.Foldl as L
 import Control.Monad ((>=>))
 import Data.IORef (newIORef, readIORef, writeIORef)
 import MVC
@@ -139,10 +139,10 @@ import Prelude hiding (id)
 -}
 
 -- | A concurrent, updatable value
-data Updatable a = forall e . On (FoldM IO e a) (Managed (Controller e))
+data Updatable a = forall e . Updatable (Managed (Controller e, FoldM IO e a))
 
 instance Functor Updatable where
-    fmap f (On fold mController) = On (fmap f fold) mController
+    fmap f (Updatable m) = Updatable (fmap (fmap (fmap f)) m)
 
 -- _Left :: Traversable' (Either a b) a
 _Left :: Applicative f => (a -> f a) -> (Either a b -> f (Either a b))
@@ -157,19 +157,19 @@ _Right k e = case e of
     Right b -> fmap Right (k b)
 
 instance Applicative Updatable where
-    pure a = On (pure a) mempty
+    pure a = Updatable (pure (pure (pure a)))
 
-    (On foldL mControllerL) <*> (On foldR mControllerR) = On foldT mControllerT
+    Updatable mL <*> Updatable mR = Updatable (liftA2 f mL mR)
       where
-        foldT =
-            Foldl.pretraverseM _Left foldL <*> Foldl.pretraverseM _Right foldR
+        f (controllerL, foldL) (controllerR, foldR) = (controllerT, foldT)
+          where
+            foldT = L.pretraverseM _Left foldL <*> L.pretraverseM _Right foldR
 
-        mControllerT =
-            fmap (fmap Left) mControllerL <> fmap (fmap Right) mControllerR
+            controllerT = fmap Left controllerL <> fmap Right controllerR
 
 -- | Create an `Updatable` value using a pure `Fold`
 on :: Fold e a -> Managed (Controller e) -> Updatable a
-on fold = On (Foldl.generalize fold)
+on fold m = Updatable (fmap (\controller -> (controller, L.generalize fold)) m)
 {-# INLINABLE on #-}
 
 {-| Attach a listener that runs every time an `Updatable` value updates
@@ -181,19 +181,21 @@ on fold = On (Foldl.generalize fold)
 > listen (f <> g) = listen g . listen f
 -}
 listen :: (a -> IO ()) -> Updatable a -> Updatable a
-listen handler (On (FoldM step begin done) mController) =
-    On (FoldM step' begin' done) mController
+listen handler (Updatable m) = Updatable (fmap f m)
   where
-    begin' = do
-        x <- begin
-        b <- done x
-        handler b
-        return x
-    step' x a = do
-        x' <- step x a
-        b  <- done x'
-        handler b
-        return x'
+    f (controller, FoldM step  begin  done) =
+      (controller, FoldM step' begin' done)
+      where
+        begin' = do
+            x <- begin
+            b <- done x
+            handler b
+            return x
+        step' x a = do
+            x' <- step x a
+            b  <- done x'
+            handler b
+            return x'
 {-# INLINABLE listen #-}
 
 {-| Transform an `Updatable` value using an impure function
@@ -203,8 +205,10 @@ listen handler (On (FoldM step begin done) mController) =
 > transform (f >=> g) = transform g . transform f
 -}
 transform :: (a -> IO b) -> Updatable a -> Updatable b
-transform f (On (FoldM step begin  done       ) mController) =
-             On (FoldM step begin (done >=> f)) mController
+transform k (Updatable m) = Updatable (fmap f m)
+  where
+    f (controller, FoldM step begin  done       ) =
+      (controller, FoldM step begin (done >=> k))
 {-# INLINABLE transform #-}
 
 {-| Run an `Updatable` value, discarding the result
@@ -212,12 +216,12 @@ transform f (On (FoldM step begin  done       ) mController) =
     Use this if you only care about running the associated listeners
 -}
 runUpdatable :: Updatable a -> IO ()
-runUpdatable (On (FoldM step begin done) mController) = runMVC () id $ do
-    controller <- mController
+runUpdatable (Updatable m) = runMVC () id $ do
+    (controller, FoldM step begin done) <- m
 
     ioref <- liftIO $ do
-        x     <- begin
-        _     <- done x
+        x <- begin
+        _ <- done x
         newIORef x
 
     let view = asSink $ \e -> do
@@ -234,8 +238,8 @@ runUpdatable (On (FoldM step begin done) mController) = runMVC () id $ do
     You must specify how to `Buffer` the updates
 -}
 updates :: Buffer a -> Updatable a -> Managed (Controller a)
-updates buffer (On (FoldM step begin done) mController) = do
-    controller <- mController
+updates buffer (Updatable m) = do
+    (controller, FoldM step begin done) <- m
     managed $ \k -> do
         (o, i, seal) <- spawn' buffer
 
