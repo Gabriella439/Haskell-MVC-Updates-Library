@@ -89,7 +89,6 @@ module MVC.Updates (
       Updatable(..)
     , on
     , listen
-    , transform
     , runUpdatable
     , updates
 
@@ -106,7 +105,6 @@ import Control.Category (id)
 import Control.Concurrent.Async (withAsync)
 import Control.Foldl (FoldM(..), Fold(..))
 import qualified Control.Foldl as L
-import Control.Monad ((>=>))
 import Data.IORef (newIORef, readIORef, writeIORef)
 import MVC
 import Prelude hiding (id)
@@ -197,19 +195,6 @@ listen handler (Updatable m) = Updatable (fmap f m)
             handler b
             return x'
 {-# INLINABLE listen #-}
-
-{-| Transform an `Updatable` value using an impure function
-
-> transform return = id
->
-> transform (f >=> g) = transform g . transform f
--}
-transform :: (a -> IO b) -> Updatable a -> Updatable b
-transform k (Updatable m) = Updatable (fmap f m)
-  where
-    f (controller, FoldM step begin  done       ) =
-      (controller, FoldM step begin (done >=> k))
-{-# INLINABLE transform #-}
 
 {-| Run an `Updatable` value, discarding the result
 
