@@ -161,7 +161,7 @@ instance Applicative Updatable where
       where
         f (controllerL, foldL) (controllerR, foldR) = (controllerT, foldT)
           where
-            foldT = L.pretraverseM _Left foldL <*> L.pretraverseM _Right foldR
+            foldT = L.handlesM _Left foldL <*> L.handlesM _Right foldR
 
             controllerT = fmap Left controllerL <> fmap Right controllerR
 
