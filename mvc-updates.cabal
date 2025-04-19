@@ -1,6 +1,6 @@
 Name: mvc-updates
 Version: 1.2.1
-Cabal-Version: >=1.8.0.2
+Cabal-Version: >=1.10
 Build-Type: Simple
 License: BSD3
 License-File: LICENSE
@@ -33,3 +33,4 @@ Library
         mvc   >= 1.1.0 && < 1.2
     Exposed-Modules: MVC.Updates
     GHC-Options: -O2 -Wall
+    Default-Language: Haskell2010
